@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>REST API Tool Details</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "DM Sans", "Signika Negative", system-ui, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .muted {
+      color: #475569;
+      font-size: 14px;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      font-size: 12px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    pre {
+      margin: 0;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      max-height: 360px;
+      font-size: 12px;
+    }
+    a {
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div><a href="/integrations/rest_api_tool/tools">Back to tools</a></div>
+      <h1 style="margin: 8px 0 4px 0;">REST API Tool Details</h1>
+      <div id="tool-id" class="muted mono"></div>
+    </div>
+
+    <div class="card" id="summary" style="display:none;"></div>
+
+    <div class="card" id="call-schema" style="display:none;"></div>
+
+    <div class="card" id="init-schema" style="display:none;"></div>
+
+    <div class="card" id="bindings" style="display:none;"></div>
+
+    <div class="card" id="error" style="display:none; border-color:#ef4444;"></div>
+  </div>
+
+  <script>
+    (async function () {
+      const toolIdEl = document.getElementById("tool-id");
+      const summaryEl = document.getElementById("summary");
+      const callSchemaEl = document.getElementById("call-schema");
+      const initSchemaEl = document.getElementById("init-schema");
+      const bindingsEl = document.getElementById("bindings");
+      const errorEl = document.getElementById("error");
+
+      const path = window.location.pathname || "";
+      const parts = path.split("/").filter(Boolean);
+      const toolUUID = parts[parts.length - 1] || "";
+      toolIdEl.textContent = toolUUID || "Unknown tool UUID";
+
+      if (!toolUUID) {
+        errorEl.style.display = "block";
+        errorEl.innerHTML = "<h2>Invalid URL</h2><p class='muted'>Missing tool UUID in path.</p>";
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/v1/integrations/rest_api_tool/tools/" + encodeURIComponent(toolUUID), {
+          credentials: "include"
+        });
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || ("Request failed with status " + response.status));
+        }
+        const data = await response.json();
+        const row = data && data.row ? data.row : null;
+        if (!row) {
+          throw new Error("Response did not include tool details.");
+        }
+
+        summaryEl.style.display = "block";
+        summaryEl.innerHTML = ""
+          + "<h2 style='margin-top:0;'>" + (row.name || "Unnamed tool") + "</h2>"
+          + "<p class='muted'>" + (row.description || "No description") + "</p>"
+          + "<div>"
+          + "<span class='pill'>" + (row.enabled ? "enabled" : "disabled") + "</span>"
+          + (row.http_method ? "<span class='pill'>" + row.http_method + "</span>" : "")
+          + (row.path ? "<span class='pill mono'>" + row.path + "</span>" : "")
+          + "</div>"
+          + "<p class='muted'><strong>Function:</strong> <span class='mono'>" + (row.function_name || "-") + "</span></p>"
+          + "<p class='muted'><strong>OpenAPI Source:</strong> " + (row.openapi_source_type || "-") + "</p>"
+          + "<p class='muted'><strong>Operation ID:</strong> <span class='mono'>" + (row.operation_id || "-") + "</span></p>";
+
+        callSchemaEl.style.display = "block";
+        callSchemaEl.innerHTML = "<h2 style='margin-top:0;'>Call Schema</h2><pre>"
+          + JSON.stringify(data.call_schema || {}, null, 2)
+          + "</pre>";
+
+        initSchemaEl.style.display = "block";
+        initSchemaEl.innerHTML = "<h2 style='margin-top:0;'>Init Schema</h2><pre>"
+          + JSON.stringify(data.init_schema || {}, null, 2)
+          + "</pre>";
+
+        bindingsEl.style.display = "block";
+        bindingsEl.innerHTML = ""
+          + "<h2 style='margin-top:0;'>Bindings & Safety</h2>"
+          + "<h3>Param Bindings</h3><pre>" + JSON.stringify(row.param_bindings || [], null, 2) + "</pre>"
+          + "<h3>Safety Policy</h3><pre>" + JSON.stringify(row.safety_policy || {}, null, 2) + "</pre>";
+      } catch (err) {
+        errorEl.style.display = "block";
+        errorEl.innerHTML = "<h2 style='margin-top:0;'>Failed to load tool details</h2><p class='muted'>"
+          + (err && err.message ? err.message : "Unknown error")
+          + "</p>";
+      }
+    })();
+  </script>
+</body>
+</html>
