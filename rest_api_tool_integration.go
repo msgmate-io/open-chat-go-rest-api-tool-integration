@@ -120,6 +120,39 @@ var restAPIToolRoutes = []string{
 	"DELETE /api/v1/integrations/rest_api_tool/tools/{tool_name}",
 }
 
+var restAPIToolRouteDocs = []integrationinterface.APIRouteDoc{
+	{
+		Route:        restAPIToolRoutes[0],
+		Summary:      "List REST API tools",
+		Description:  "List owner-scoped runtime REST API tools.",
+		RequiredAuth: []string{"SessionAuth"},
+	},
+	{
+		Route:        restAPIToolRoutes[1],
+		Summary:      "Get REST API tool",
+		Description:  "Get one owner-scoped runtime REST API tool by UUID.",
+		RequiredAuth: []string{"SessionAuth"},
+	},
+	{
+		Route:        restAPIToolRoutes[2],
+		Summary:      "Create REST API tool",
+		Description:  "Create an owner-scoped runtime REST API tool definition.",
+		RequiredAuth: []string{"SessionAuth"},
+	},
+	{
+		Route:        restAPIToolRoutes[3],
+		Summary:      "Update REST API tool",
+		Description:  "Update an owner-scoped runtime REST API tool definition.",
+		RequiredAuth: []string{"SessionAuth"},
+	},
+	{
+		Route:        restAPIToolRoutes[4],
+		Summary:      "Delete REST API tool",
+		Description:  "Delete an owner-scoped runtime REST API tool definition by name.",
+		RequiredAuth: []string{"SessionAuth"},
+	},
+}
+
 //go:embed frontend_assets
 var restAPIToolFrontendAssets embed.FS
 
@@ -146,6 +179,7 @@ func init() {
 		Name:           "rest_api_tool",
 		ReadmeMarkdown: strings.TrimSpace(restAPIToolReadmeMarkdown),
 		APIRoutes:      append([]string(nil), restAPIToolRoutes...),
+		APIRouteDocs:   append([]integrationinterface.APIRouteDoc(nil), restAPIToolRouteDocs...),
 		FrontendPages:  append([]integrationinterface.FrontendPage(nil), restAPIToolFrontendPages...),
 		FrontendAssets: mustSubFS(restAPIToolFrontendAssets, "frontend_assets"),
 		ModelProviders: []func() []interface{}{
