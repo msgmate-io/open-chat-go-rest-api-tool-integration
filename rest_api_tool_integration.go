@@ -177,6 +177,8 @@ var restAPIToolFrontendPages = []integrationinterface.FrontendPage{
 func init() {
 	integrationinterface.MustRegister(integrationinterface.Definition{
 		Name:           "rest_api_tool",
+		AdminOnly:      false,
+		UserAccessible: true,
 		ReadmeMarkdown: strings.TrimSpace(restAPIToolReadmeMarkdown),
 		APIRoutes:      append([]string(nil), restAPIToolRoutes...),
 		APIRouteDocs:   append([]integrationinterface.APIRouteDoc(nil), restAPIToolRouteDocs...),
