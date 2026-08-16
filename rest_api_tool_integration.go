@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -246,7 +247,23 @@ func listDynamicRESTTools(w http.ResponseWriter, r *http.Request) {
 
 	var rows []database.DynamicRESTTool
 	if err := DB.Where("owner_user_id = ?", user.ID).Order("name asc").Find(&rows).Error; err != nil {
-		http.Error(w, "Failed to list dynamic tools", http.StatusInternalServerError)
+		if migrateErr := DB.AutoMigrate(&database.DynamicRESTTool{}); migrateErr == nil {
+			rows = nil
+			if retryErr := DB.Where("owner_user_id = ?", user.ID).Order("name asc").Find(&rows).Error; retryErr != nil {
+				log.Printf("restapitoolintegration: list tools failed after migration retry: %v", retryErr)
+				http.Error(w, "Failed to list dynamic tools", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			log.Printf("restapitoolintegration: auto-migrate dynamic tools table failed: %v", migrateErr)
+			http.Error(w, "Failed to list dynamic tools", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("restapitoolintegration: list tools failed, recovered with migration: %v", err)
+	}
+	if len(rows) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"rows": []dynamicRESTToolListRow{}})
 		return
 	}
 	items := make([]dynamicRESTToolListRow, 0, len(rows))
