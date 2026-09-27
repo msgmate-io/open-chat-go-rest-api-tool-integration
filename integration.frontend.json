@@ -1,0 +1,12 @@
+{
+  "pages": [
+    {
+      "source": "integrations/rest_api_tool/tools",
+      "asset": "tools/index.html"
+    },
+    {
+      "source": "integrations/rest_api_tool/tools/tool-uuid-placeholder",
+      "asset": "tools/tool_uuid/index.html"
+    }
+  ]
+}
