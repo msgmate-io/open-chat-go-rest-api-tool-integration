@@ -1,9 +1,6 @@
 package restapitoolintegration
 
 import (
-	"backend/api/msgmate/tools"
-	"backend/database"
-	"backend/server/util"
 	"bytes"
 	"embed"
 	"encoding/json"
@@ -21,6 +18,7 @@ import (
 	"time"
 
 	"github.com/msgmate-io/go-integration-interface/integrationinterface"
+	"github.com/msgmate-io/go-tool-interface/toolinterface"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
@@ -187,7 +185,7 @@ func init() {
 		FrontendAssets: mustSubFS(restAPIToolFrontendAssets, "frontend_assets"),
 		ModelProviders: []func() []interface{}{
 			func() []interface{} {
-				return []interface{}{&database.DynamicRESTTool{}}
+				return []interface{}{&DynamicRESTTool{}}
 			},
 		},
 		RouteRegistrar: registerRoutes,
@@ -235,7 +233,7 @@ func v1PrivatePattern(fullRoute string) string {
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/integrations/rest_api_tool/tools [get]
 func listDynamicRESTTools(w http.ResponseWriter, r *http.Request) {
-	DB, user, err := util.GetDBAndUser(r)
+	DB, user, err := dbAndUser(r)
 	if err != nil {
 		http.Error(w, "Unable to get database or user", http.StatusBadRequest)
 		return
@@ -245,11 +243,11 @@ func listDynamicRESTTools(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rows []database.DynamicRESTTool
-	if err := DB.Where("owner_user_id = ?", user.ID).Order("name asc").Find(&rows).Error; err != nil {
-		if migrateErr := DB.AutoMigrate(&database.DynamicRESTTool{}); migrateErr == nil {
+	var rows []DynamicRESTTool
+	if err := DB.Where("owner_user_id = ?", user.ID()).Order("name asc").Find(&rows).Error; err != nil {
+		if migrateErr := DB.AutoMigrate(&DynamicRESTTool{}); migrateErr == nil {
 			rows = nil
-			if retryErr := DB.Where("owner_user_id = ?", user.ID).Order("name asc").Find(&rows).Error; retryErr != nil {
+			if retryErr := DB.Where("owner_user_id = ?", user.ID()).Order("name asc").Find(&rows).Error; retryErr != nil {
 				log.Printf("restapitoolintegration: list tools failed after migration retry: %v", retryErr)
 				http.Error(w, "Failed to list dynamic tools", http.StatusInternalServerError)
 				return
@@ -283,7 +281,7 @@ func listDynamicRESTTools(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} dynamicRESTToolDetailResponse
 // @Router       /api/v1/integrations/rest_api_tool/tools/{tool_uuid} [get]
 func getDynamicRESTToolByUUID(w http.ResponseWriter, r *http.Request) {
-	DB, user, err := util.GetDBAndUser(r)
+	DB, user, err := dbAndUser(r)
 	if err != nil {
 		http.Error(w, "Unable to get database or user", http.StatusBadRequest)
 		return
@@ -298,8 +296,8 @@ func getDynamicRESTToolByUUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var row database.DynamicRESTTool
-	if err := DB.Where("owner_user_id = ? AND uuid = ?", user.ID, toolUUID).First(&row).Error; err != nil {
+	var row DynamicRESTTool
+	if err := DB.Where("owner_user_id = ? AND uuid = ?", user.ID(), toolUUID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			http.Error(w, "tool not found", http.StatusNotFound)
 			return
@@ -332,7 +330,7 @@ func getDynamicRESTToolByUUID(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/integrations/rest_api_tool/tools [post]
 func createDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
-	DB, user, err := util.GetDBAndUser(r)
+	DB, user, err := dbAndUser(r)
 	if err != nil {
 		http.Error(w, "Unable to get database or user", http.StatusBadRequest)
 		return
@@ -359,9 +357,9 @@ func createDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var existing database.DynamicRESTTool
+	var existing DynamicRESTTool
 	lookupErr := DB.Unscoped().
-		Where("owner_user_id = ? AND name = ?", user.ID, row.Name).
+		Where("owner_user_id = ? AND name = ?", user.ID(), row.Name).
 		First(&existing).Error
 	if lookupErr == nil {
 		if existing.DeletedAt.Valid {
@@ -402,7 +400,7 @@ func createDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/integrations/rest_api_tool/tools/{tool_name} [put]
 func updateDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
-	DB, user, err := util.GetDBAndUser(r)
+	DB, user, err := dbAndUser(r)
 	if err != nil {
 		http.Error(w, "Unable to get database or user", http.StatusBadRequest)
 		return
@@ -438,8 +436,8 @@ func updateDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var existing database.DynamicRESTTool
-	if err := DB.Where("owner_user_id = ? AND name = ?", user.ID, toolName).First(&existing).Error; err != nil {
+	var existing DynamicRESTTool
+	if err := DB.Where("owner_user_id = ? AND name = ?", user.ID(), toolName).First(&existing).Error; err != nil {
 		http.Error(w, "tool not found", http.StatusNotFound)
 		return
 	}
@@ -463,7 +461,7 @@ func updateDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
 // @Success      200 {object} map[string]interface{}
 // @Router       /api/v1/integrations/rest_api_tool/tools/{tool_name} [delete]
 func deleteDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
-	DB, user, err := util.GetDBAndUser(r)
+	DB, user, err := dbAndUser(r)
 	if err != nil {
 		http.Error(w, "Unable to get database or user", http.StatusBadRequest)
 		return
@@ -477,30 +475,30 @@ func deleteDynamicRESTTool(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "tool_name is required", http.StatusBadRequest)
 		return
 	}
-	if err := DB.Unscoped().Where("owner_user_id = ? AND name = ?", user.ID, toolName).Delete(&database.DynamicRESTTool{}).Error; err != nil {
+	if err := DB.Unscoped().Where("owner_user_id = ? AND name = ?", user.ID(), toolName).Delete(&DynamicRESTTool{}).Error; err != nil {
 		http.Error(w, "failed to delete dynamic rest tool", http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 }
 
-func buildDynamicRESTToolRowFromRequest(user *database.User, req DynamicRESTToolUpsertRequest) (database.DynamicRESTTool, error) {
+func buildDynamicRESTToolRowFromRequest(user integrationinterface.User, req DynamicRESTToolUpsertRequest) (DynamicRESTTool, error) {
 	if user == nil {
-		return database.DynamicRESTTool{}, fmt.Errorf("user is required")
+		return DynamicRESTTool{}, fmt.Errorf("user is required")
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		return database.DynamicRESTTool{}, fmt.Errorf("name is required")
+		return DynamicRESTTool{}, fmt.Errorf("name is required")
 	}
 
 	bindJSON, err := json.Marshal(req.ParamBindings)
 	if err != nil {
-		return database.DynamicRESTTool{}, fmt.Errorf("invalid param_bindings")
+		return DynamicRESTTool{}, fmt.Errorf("invalid param_bindings")
 	}
 	safetyJSON, err := json.Marshal(req.SafetyPolicy)
 	if err != nil {
-		return database.DynamicRESTTool{}, fmt.Errorf("invalid safety_policy")
+		return DynamicRESTTool{}, fmt.Errorf("invalid safety_policy")
 	}
 
 	enabled := true
@@ -508,8 +506,8 @@ func buildDynamicRESTToolRowFromRequest(user *database.User, req DynamicRESTTool
 		enabled = *req.Enabled
 	}
 
-	return database.DynamicRESTTool{
-		OwnerUserId:                    user.ID,
+	return DynamicRESTTool{
+		OwnerUserId:                    user.ID(),
 		Name:                           req.Name,
 		FunctionName:                   req.FunctionName,
 		Description:                    req.Description,
@@ -530,7 +528,7 @@ func buildDynamicRESTToolRowFromRequest(user *database.User, req DynamicRESTTool
 	}, nil
 }
 
-func applyDynamicRESTToolRow(target *database.DynamicRESTTool, row database.DynamicRESTTool) {
+func applyDynamicRESTToolRow(target *DynamicRESTTool, row DynamicRESTTool) {
 	target.OwnerUserId = row.OwnerUserId
 	target.Name = row.Name
 	target.FunctionName = row.FunctionName
@@ -551,7 +549,7 @@ func applyDynamicRESTToolRow(target *database.DynamicRESTTool, row database.Dyna
 	target.SafetyPolicy = row.SafetyPolicy
 }
 
-func buildDynamicRESTToolListRow(row database.DynamicRESTTool) dynamicRESTToolListRow {
+func buildDynamicRESTToolListRow(row DynamicRESTTool) dynamicRESTToolListRow {
 	return dynamicRESTToolListRow{
 		UUID:                           row.UUID,
 		Name:                           row.Name,
@@ -575,7 +573,7 @@ func buildDynamicRESTToolListRow(row database.DynamicRESTTool) dynamicRESTToolLi
 	}
 }
 
-func ResolveUserDynamicRESTToolByName(db *gorm.DB, ownerUserID uint, toolName string) (*database.DynamicRESTTool, error) {
+func ResolveUserDynamicRESTToolByName(db *gorm.DB, ownerUserID uint, toolName string) (*DynamicRESTTool, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database is required")
 	}
@@ -587,14 +585,14 @@ func ResolveUserDynamicRESTToolByName(db *gorm.DB, ownerUserID uint, toolName st
 		return nil, fmt.Errorf("tool name is required")
 	}
 
-	var row database.DynamicRESTTool
+	var row DynamicRESTTool
 	if err := db.Where("owner_user_id = ? AND name = ? AND enabled = ?", ownerUserID, toolName, true).First(&row).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
 }
 
-func BuildDynamicRESTToolSnapshot(row database.DynamicRESTTool) map[string]interface{} {
+func BuildDynamicRESTToolSnapshot(row DynamicRESTTool) map[string]interface{} {
 	return map[string]interface{}{
 		"name":                                row.Name,
 		"function_name":                       row.FunctionName,
@@ -615,36 +613,36 @@ func BuildDynamicRESTToolSnapshot(row database.DynamicRESTTool) map[string]inter
 	}
 }
 
-func NewDynamicRESTToolDefinitionFromSnapshot(toolName string, dynamicToolsRaw interface{}) (tools.ToolDefinition, bool, error) {
+func NewDynamicRESTToolDefinitionFromSnapshot(toolName string, dynamicToolsRaw interface{}) (toolinterface.Definition, bool, error) {
 	dynamicToolsMap, ok := dynamicToolsRaw.(map[string]interface{})
 	if !ok || dynamicToolsMap == nil {
-		return tools.ToolDefinition{}, false, nil
+		return toolinterface.Definition{}, false, nil
 	}
 	rawDef, exists := dynamicToolsMap[toolName]
 	if !exists {
-		return tools.ToolDefinition{}, false, nil
+		return toolinterface.Definition{}, false, nil
 	}
 	defMap, ok := rawDef.(map[string]interface{})
 	if !ok {
-		return tools.ToolDefinition{}, false, fmt.Errorf("dynamic tool %q definition must be an object", toolName)
+		return toolinterface.Definition{}, false, fmt.Errorf("dynamic tool %q definition must be an object", toolName)
 	}
 
 	row, err := dynamicRESTToolFromMap(defMap)
 	if err != nil {
-		return tools.ToolDefinition{}, false, err
+		return toolinterface.Definition{}, false, err
 	}
 	if strings.TrimSpace(row.Name) == "" {
 		row.Name = toolName
 	}
 	def, err := BuildDynamicRESTToolDefinition(row)
 	if err != nil {
-		return tools.ToolDefinition{}, false, err
+		return toolinterface.Definition{}, false, err
 	}
 	return def, true, nil
 }
 
-func dynamicRESTToolFromMap(input map[string]interface{}) (database.DynamicRESTTool, error) {
-	row := database.DynamicRESTTool{}
+func dynamicRESTToolFromMap(input map[string]interface{}) (DynamicRESTTool, error) {
+	row := DynamicRESTTool{}
 	row.Name, _ = input["name"].(string)
 	row.FunctionName, _ = input["function_name"].(string)
 	row.Description, _ = input["description"].(string)
@@ -692,9 +690,9 @@ func parseJSONObjectOrEmpty(raw json.RawMessage) map[string]interface{} {
 	return out
 }
 
-func BuildDynamicRESTToolDefinition(row database.DynamicRESTTool) (tools.ToolDefinition, error) {
+func BuildDynamicRESTToolDefinition(row DynamicRESTTool) (toolinterface.Definition, error) {
 	if strings.TrimSpace(row.Name) == "" {
-		return tools.ToolDefinition{}, fmt.Errorf("name is required")
+		return toolinterface.Definition{}, fmt.Errorf("name is required")
 	}
 	if strings.TrimSpace(row.OpenAPISourceType) == "" {
 		row.OpenAPISourceType = "inline"
@@ -702,16 +700,16 @@ func BuildDynamicRESTToolDefinition(row database.DynamicRESTTool) (tools.ToolDef
 
 	doc, err := loadOpenAPIDocument(row.OpenAPISourceType, row.OpenAPISource)
 	if err != nil {
-		return tools.ToolDefinition{}, err
+		return toolinterface.Definition{}, err
 	}
 	baseURL, params, method, path, err := resolveOperation(doc, row.OperationID, row.HTTPMethod, row.Path)
 	if err != nil {
-		return tools.ToolDefinition{}, err
+		return toolinterface.Definition{}, err
 	}
 
 	bindings, safety, err := compileBindingsAndPolicy(params, row.ParamBindings, row.SafetyPolicy)
 	if err != nil {
-		return tools.ToolDefinition{}, err
+		return toolinterface.Definition{}, err
 	}
 
 	callSchema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{}, "required": []string{}, "additionalProperties": false}
@@ -727,10 +725,10 @@ func BuildDynamicRESTToolDefinition(row database.DynamicRESTTool) (tools.ToolDef
 		baseURLSource = "init"
 	}
 	if baseURLSource != "" && baseURLSource != "init" && baseURLSource != "call" {
-		return tools.ToolDefinition{}, fmt.Errorf("base_url_source must be 'init' or 'call'")
+		return toolinterface.Definition{}, fmt.Errorf("base_url_source must be 'init' or 'call'")
 	}
 	if baseURLSource != "" && baseURLInputName == "" {
-		return tools.ToolDefinition{}, fmt.Errorf("base_url_input_name is required when base_url_source is set")
+		return toolinterface.Definition{}, fmt.Errorf("base_url_input_name is required when base_url_source is set")
 	}
 	if baseURLInputName != "" {
 		baseURLSchema := map[string]interface{}{
@@ -781,7 +779,7 @@ func BuildDynamicRESTToolDefinition(row database.DynamicRESTTool) (tools.ToolDef
 		functionName = row.Name
 	}
 
-	def := tools.ToolDefinition{
+	def := toolinterface.Definition{
 		Name:                           row.Name,
 		FunctionName:                   functionName,
 		Description:                    row.Description,
@@ -793,7 +791,7 @@ func BuildDynamicRESTToolDefinition(row database.DynamicRESTTool) (tools.ToolDef
 		ConfirmationBlockMessage:       row.ConfirmationBlockMessage,
 		InputType:                      map[string]interface{}{},
 		InputSchema:                    callSchema,
-		RunFunction:                    runDynamicRESTTool(spec),
+		Run:                            runDynamicRESTTool(spec),
 	}
 	return def, nil
 }
